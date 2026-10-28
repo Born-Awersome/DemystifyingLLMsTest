@@ -17,7 +17,7 @@ def autoregressive_generate(model: torch.nn.Module, input_ids: torch.Tensor,
         raise ValueError("max_new_tokens must be non-negative")
     generated = input_ids.clone()
     num_layers = getattr(model, 'num_layers', getattr(getattr(model, 'config', None), 'n_layers', 12))
-    parameters = inspect.signature(model.forward).parameters.values()
+    parameters = inspect.signature(getattr(model, "forward", model)).parameters.values()
     supports_cache = any(p.name == "kv_cache" or p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters)
     cache = KVCache(num_layers=num_layers) if use_cache and supports_cache else None
     finished = torch.zeros(input_ids.size(0), dtype=torch.bool, device=input_ids.device)
@@ -25,17 +25,20 @@ def autoregressive_generate(model: torch.nn.Module, input_ids: torch.Tensor,
     if eos_token_id is not None:
         stops.add(eos_token_id)
     stop_values = torch.tensor(sorted(stops), device=input_ids.device, dtype=input_ids.dtype)
-    was_training = model.training
-    model.eval()
+    was_training = getattr(model, "training", None)
+    if hasattr(model, "eval"):
+        model.eval()
     try:
         for step in range(max_new_tokens):
             if cache is not None:
-                model_inputs = generated if step == 0 else generated[:, -1:]
+                model_inputs = generated if cache.get_seq_length() == 0 else generated[:, -1:]
                 logits = model(model_inputs, kv_cache=cache)
             else:
                 logits = model(generated)
             if isinstance(logits, tuple):
                 logits = logits[0]
+            if not isinstance(logits, torch.Tensor) or logits.ndim != 3:
+                raise TypeError("Model must return (batch, sequence, vocabulary) logits")
             scores = logits[:, -1, :]
             token = sampler_fn(scores) if sampler_fn else scores.argmax(dim=-1)
             token = token.reshape(input_ids.size(0), 1)
@@ -47,5 +50,6 @@ def autoregressive_generate(model: torch.nn.Module, input_ids: torch.Tensor,
             if finished.all():
                 break
     finally:
-        model.train(was_training)
+        if was_training is not None and hasattr(model, "train"):
+            model.train(was_training)
     return generated

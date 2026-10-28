@@ -34,7 +34,7 @@ class InferenceEngine:
                  inference_config: Optional[InferenceConfig] = None,
                  model: Optional[Any] = None,
                  device: Optional[Union[str, torch.device]] = None):
-        self.model_config = model_config or ModelConfig()
+        self.model_config = model_config or getattr(model, "config", None) or ModelConfig()
         self.inference_config = inference_config or InferenceConfig()
         self.inference_config.validate()
         self.device = torch.device(device or 'cpu')
