@@ -18,7 +18,7 @@ def autoregressive_generate(model: torch.nn.Module, input_ids: torch.Tensor,
     generated = input_ids.clone()
     num_layers = getattr(model, 'num_layers', getattr(getattr(model, 'config', None), 'n_layers', 12))
     parameters = inspect.signature(getattr(model, "forward", model)).parameters.values()
-    supports_cache = any(p.name == "kv_cache" or p.kind == inspect.Parameter.VAR_KEYWORD for p in parameters)
+    supports_cache = any(p.name == "kv_cache" for p in parameters)
     cache = KVCache(num_layers=num_layers) if use_cache and supports_cache else None
     finished = torch.zeros(input_ids.size(0), dtype=torch.bool, device=input_ids.device)
     stops = set(stop_token_ids or [])
@@ -31,7 +31,7 @@ def autoregressive_generate(model: torch.nn.Module, input_ids: torch.Tensor,
     try:
         for step in range(max_new_tokens):
             if cache is not None:
-                model_inputs = generated if cache.get_seq_length() == 0 else generated[:, -1:]
+                model_inputs = generated if step == 0 else generated[:, -1:]
                 logits = model(model_inputs, kv_cache=cache)
             else:
                 logits = model(generated)

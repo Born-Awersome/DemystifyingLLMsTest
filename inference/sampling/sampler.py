@@ -23,7 +23,9 @@ class Sampler:
             logits = apply_repetition_penalty(logits, generated_tokens, self.repetition_penalty)
         if self.temperature == 0:
             return logits.argmax(dim=-1)
-        logits = apply_temperature(logits, self.temperature)
+        if self.temperature < 0:
+            raise ValueError("temperature must be non-negative")
+        logits = logits / self.temperature
         logits = apply_top_k(logits, self.top_k)
         logits = apply_top_p(logits, self.top_p)
         return torch.multinomial(logits.softmax(dim=-1), num_samples=1).squeeze(-1)
