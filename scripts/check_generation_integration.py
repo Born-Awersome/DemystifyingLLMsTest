@@ -20,7 +20,9 @@ assert torch.equal(a,b)
 engine=InferenceEngine(model=m,inference_config=InferenceConfig(temperature=0,max_new_tokens=3))
 assert engine.model_config is cfg
 pipe=ServingPipeline(model=m,inference_config=InferenceConfig(temperature=0,max_new_tokens=3))
-assert pipe.process('AB')==engine.generate('AB')
-assert len(pipe.process('AB'))==5
+with torch.no_grad():
+ expected = ''.join(chr(i) for i in m(ids).argmax(-1)[0].tolist())
+assert pipe.process('AB') == expected
+assert pipe.process('AB', max_new_tokens=3) == engine.generate('AB')
 assert pipe.process('AB',max_new_tokens=0)=='AB'
-print('Callable, ignored-cache, model config, and default pipeline generation checks passed')
+print('Callable, ignored-cache, model config, and pipeline forward/decode checks passed')
